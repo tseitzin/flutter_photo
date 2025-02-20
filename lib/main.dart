@@ -20,8 +20,16 @@ class DirectoryStats {
   final String path;
   final int imageCount;
   final List<String> errors;
+  final List<String> imageFiles;
+  final bool isAccessError;
 
-  DirectoryStats(this.path, this.imageCount, {this.errors = const []});
+  DirectoryStats(
+    this.path, 
+    this.imageCount, 
+    {this.errors = const [], 
+    this.imageFiles = const [],
+    this.isAccessError = false}
+  );
 }
 
 class _MyAppState extends State<MyApp> {
@@ -31,8 +39,8 @@ class _MyAppState extends State<MyApp> {
   bool _isLoading = false;
   int _scannedFiles = 0;
   int _scannedDirs = 0;
-  int _imagesFound = 0;  // New variable for running total of images
-  int _totalDirs = 0;    // New variable for total directories scanned
+  int _imagesFound = 0;
+  int _totalDirs = 0;
   int _errorCount = 0;
   final List<String> _accessErrors = [];
   final Set<String> _unscannedDirectories = {};
@@ -106,14 +114,14 @@ class _MyAppState extends State<MyApp> {
     return path.split(dirPath).any((part) => part.startsWith('.'));
   }
 
-  Future<void> _scanDirectory(Directory directory, Map<String, int> directoryCounts, Map<String, List<String>> directoryErrors) async {
+  Future<void> _scanDirectory(Directory directory, Map<String, int> directoryCounts, Map<String, List<String>> directoryErrors, Map<String, List<String>> directoryImages) async {
     if (_shouldSkipDirectory(directory.path)) {
       return;
     }
 
     try {
       setState(() {
-        _totalDirs++;  // Increment total directories counter
+        _totalDirs++;
       });
 
       await for (var entity in directory.list(recursive: false, followLinks: false)) {
@@ -124,7 +132,7 @@ class _MyAppState extends State<MyApp> {
             continue;
           }
 
-          await _scanDirectory(entity, directoryCounts, directoryErrors);
+          await _scanDirectory(entity, directoryCounts, directoryErrors, directoryImages);
         } else if (entity is File) {
           if (_shouldSkipDirectory(path.dirname(entity.path))) {
             continue;
@@ -139,21 +147,49 @@ class _MyAppState extends State<MyApp> {
             String dirPath = path.dirname(entity.path);
             directoryCounts[dirPath] = (directoryCounts[dirPath] ?? 0) + 1;
             
+            if (!directoryImages.containsKey(dirPath)) {
+              directoryImages[dirPath] = [];
+            }
+            directoryImages[dirPath]!.add(entity.path);
+            
             setState(() {
               _scannedDirs = directoryCounts.length;
-              _imagesFound++;  // Increment running total of images
+              _imagesFound++;
             });
           }
         }
       }
     } catch (e) {
       if (!_shouldSkipDirectory(directory.path)) {
-        _accessErrors.add('Error scanning ${directory.path}: $e');
+        String errorMessage = e.toString();
+        bool isAccessError = errorMessage.toLowerCase().contains('access') || 
+                          errorMessage.toLowerCase().contains('permission');
+        
+        if (isAccessError) {
+          setState(() {
+            _unscannedDirectories.add(directory.path);
+          });
+        } else {
+          _accessErrors.add('Error in ${directory.path}: ${_getDetailedError(e)}');
+        }
+        
         setState(() {
-          _unscannedDirectories.add(directory.path);
           _errorCount++;
         });
       }
+    }
+  }
+
+  String _getDetailedError(dynamic error) {
+    String errorStr = error.toString().toLowerCase();
+    if (errorStr.contains('access') || errorStr.contains('permission')) {
+      return 'Access denied';
+    } else if (errorStr.contains('not found') || errorStr.contains('no such')) {
+      return 'Directory not found';
+    } else if (errorStr.contains('busy') || errorStr.contains('locked')) {
+      return 'Directory is in use by another process';
+    } else {
+      return error.toString();
     }
   }
 
@@ -185,8 +221,8 @@ class _MyAppState extends State<MyApp> {
           _isLoading = true;
           _scannedFiles = 0;
           _scannedDirs = 0;
-          _imagesFound = 0;  // Reset running total
-          _totalDirs = 0;    // Reset total directories
+          _imagesFound = 0;
+          _totalDirs = 0;
           _errorCount = 0;
           _selectedDirectory = directoryPath;
           _directoryStats = [];
@@ -201,8 +237,9 @@ class _MyAppState extends State<MyApp> {
         final directory = Directory(directoryPath);
         Map<String, int> directoryCounts = {};
         Map<String, List<String>> directoryErrors = {};
+        Map<String, List<String>> directoryImages = {};
         
-        await _scanDirectory(directory, directoryCounts, directoryErrors);
+        await _scanDirectory(directory, directoryCounts, directoryErrors, directoryImages);
 
         _updateTimer?.cancel();
 
@@ -215,7 +252,8 @@ class _MyAppState extends State<MyApp> {
           stats.add(DirectoryStats(
             dirPath, 
             count,
-            errors: directoryErrors[dirPath] ?? []
+            errors: directoryErrors[dirPath] ?? [],
+            imageFiles: directoryImages[dirPath] ?? []
           ));
           total += count;
         });
@@ -228,17 +266,7 @@ class _MyAppState extends State<MyApp> {
           _isLoading = false;
         });
 
-        if (_unscannedDirectories.isNotEmpty) {
-          if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text('${_unscannedDirectories.length} directories could not be scanned'),
-                backgroundColor: Colors.orange,
-                duration: const Duration(seconds: 5),
-              )
-            );
-          }
-        } else if (_totalImages == 0) {
+        if (_totalImages == 0) {
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
               const SnackBar(
@@ -303,6 +331,200 @@ class _MyAppState extends State<MyApp> {
     return fullPath;
   }
 
+  void _showImagesDialog(BuildContext context, DirectoryStats stats) {
+    showDialog(
+      context: context,
+      builder: (context) => Dialog(
+        child: Container(
+          width: MediaQuery.of(context).size.width * 0.8,
+          height: MediaQuery.of(context).size.height * 0.8,
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  const Icon(Icons.photo_library, size: 20, color: Colors.blue),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'Images in ${_getRelativePath(stats.path)}',
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                      ),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.close),
+                    onPressed: () => Navigator.of(context).pop(),
+                  ),
+                ],
+              ),
+              const Divider(),
+              Text(
+                '${stats.imageFiles.length} images found',
+                style: const TextStyle(
+                  color: Colors.grey,
+                  fontSize: 12,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Expanded(
+                child: ListView.builder(
+                  itemCount: stats.imageFiles.length,
+                  itemBuilder: (context, index) {
+                    final imagePath = stats.imageFiles[index];
+                    return ListTile(
+                      dense: true,
+                      leading: const Icon(Icons.image, size: 16, color: Colors.blue),
+                      title: Text(
+                        path.basename(imagePath),
+                        style: const TextStyle(fontSize: 12),
+                      ),
+                      subtitle: Text(
+                        imagePath,
+                        style: const TextStyle(fontSize: 10, color: Colors.grey),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _showErrorsDialog(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (context) => Dialog(
+        child: Container(
+          width: MediaQuery.of(context).size.width * 0.8,
+          height: MediaQuery.of(context).size.height * 0.8,
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  const Icon(Icons.error_outline, size: 24, color: Colors.red),
+                  const SizedBox(width: 8),
+                  const Text(
+                    'Scan Errors',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const Spacer(),
+                  IconButton(
+                    icon: const Icon(Icons.close),
+                    onPressed: () => Navigator.of(context).pop(),
+                  ),
+                ],
+              ),
+              const Divider(),
+              if (_accessErrors.isNotEmpty) ...[
+                const Text(
+                  'Scanning Errors:',
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w500,
+                    color: Colors.red,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Expanded(
+                  flex: 1,
+                  child: ListView.builder(
+                    itemCount: _accessErrors.length,
+                    itemBuilder: (context, index) {
+                      return Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 4),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Icon(Icons.error, color: Colors.red, size: 16),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                _accessErrors[index],
+                                style: const TextStyle(fontSize: 12),
+                              ),
+                            ),
+                          ],
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              ],
+              if (_unscannedDirectories.isNotEmpty) ...[
+                const SizedBox(height: 16),
+                Row(
+                  children: [
+                    const Icon(Icons.folder_off, color: Colors.orange, size: 20),
+                    const SizedBox(width: 8),
+                    Text(
+                      'Inaccessible Directories (${_unscannedDirectories.length}):',
+                      style: const TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w500,
+                        color: Colors.orange,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Expanded(
+                  flex: 2,
+                  child: ListView.builder(
+                    itemCount: _unscannedDirectories.length,
+                    itemBuilder: (context, index) {
+                      final dir = _unscannedDirectories.elementAt(index);
+                      return Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 4),
+                        child: Row(
+                          children: [
+                            const Icon(Icons.block, color: Colors.orange, size: 16),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    _getRelativePath(dir),
+                                    style: const TextStyle(fontSize: 12),
+                                  ),
+                                  Text(
+                                    dir,
+                                    style: const TextStyle(
+                                      fontSize: 10,
+                                      color: Colors.grey,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
@@ -361,13 +583,14 @@ class _MyAppState extends State<MyApp> {
                         children: [
                           const Row(
                             children: [
+                              Icon(Icons.info_outline, color: Colors.blue, size: 28),
                               SizedBox(width: 16),
                               Text(
                                 'Welcome to Photo Analyzer',
                                 style: TextStyle(
                                   fontSize: 24,
                                   fontWeight: FontWeight.bold,
-                                  color: Color.fromARGB(255, 7, 78, 135),
+                                  color: Colors.blue,
                                 ),
                               ),
                             ],
@@ -520,14 +743,14 @@ class _MyAppState extends State<MyApp> {
                                       style: TextStyle(
                                         fontSize: 18,
                                         fontWeight: FontWeight.bold,
-                                        color: Color.fromARGB(255, 15, 55, 88),
+                                        color: Colors.blue,
                                       ),
                                     ),
                                     const Spacer(),
                                     Text(
                                       '$_totalImages images in ${_directoryStats.length} directories',
                                       style: const TextStyle(
-                                        color: Color.fromARGB(255, 14, 14, 14),
+                                        color: Colors.grey,
                                         fontSize: 14,
                                       ),
                                     ),
@@ -543,7 +766,7 @@ class _MyAppState extends State<MyApp> {
                                         _selectedDirectory!,
                                         style: const TextStyle(
                                           fontSize: 12,
-                                          color: Color.fromARGB(255, 31, 30, 30),
+                                          color: Colors.grey,
                                         ),
                                         overflow: TextOverflow.ellipsis,
                                       ),
@@ -556,95 +779,130 @@ class _MyAppState extends State<MyApp> {
                           if (_errorCount > 0)
                             Padding(
                               padding: const EdgeInsets.symmetric(horizontal: 16.0),
-                              child: Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                                decoration: BoxDecoration(
-                                  color: Colors.red.withOpacity(0.1),
-                                  borderRadius: BorderRadius.circular(4),
-                                ),
-                                child: Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    const Icon(Icons.warning, color: Colors.red, size: 16),
-                                    const SizedBox(width: 8),
-                                    Text(
-                                      '$_errorCount errors encountered',
-                                      style: const TextStyle(color: Colors.red, fontSize: 12),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ),
-                          if (_unscannedDirectories.isNotEmpty)
-                            Padding(
-                              padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
-                              child: ExpansionTile(
-                                leading: const Icon(Icons.error_outline, color: Colors.orange, size: 16),
-                                title: Text(
-                                  '${_unscannedDirectories.length} Inaccessible Directories',
-                                  style: const TextStyle(
-                                    color: Colors.orange,
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: 12,
+                              child: InkWell(
+                                onTap: () => _showErrorsDialog(context),
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                                  decoration: BoxDecoration(
+                                    color: Colors.red.withOpacity(0.1),
+                                    borderRadius: BorderRadius.circular(4),
+                                  ),
+                                  child: Row(
+                                    children: [
+                                      const Icon(Icons.warning, color: Colors.red, size: 16),
+                                      const SizedBox(width: 8),
+                                      Text(
+                                        'Errors: ${_accessErrors.length} scanning error${_accessErrors.length != 1 ? 's' : ''}, ${_unscannedDirectories.length} inaccessible director${_unscannedDirectories.length != 1 ? 'ies' : 'y'}',
+                                        style: const TextStyle(color: Colors.red, fontSize: 12),
+                                      ),
+                                      const Spacer(),
+                                      const Icon(
+                                        Icons.arrow_forward_ios,
+                                        color: Colors.red,
+                                        size: 12,
+                                      ),
+                                    ],
                                   ),
                                 ),
-                                children: _unscannedDirectories.map((dir) => ListTile(
-                                  dense: true,
-                                  visualDensity: VisualDensity.compact,
-                                  leading: const Icon(Icons.folder_off, color: Colors.orange, size: 16),
-                                  title: Text(
-                                    _getRelativePath(dir),
-                                    style: const TextStyle(fontSize: 12),
-                                  ),
-                                )).toList(),
                               ),
                             ),
                           Expanded(
-                            child: ListView.builder(
-                              itemCount: _directoryStats.length,
-                              itemBuilder: (context, index) {
-                                final stat = _directoryStats[index];
-                                return Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    ListTile(
-                                      dense: true,
-                                      visualDensity: VisualDensity.compact,
-                                      leading: const Icon(Icons.folder_open, color: Colors.blue, size: 16),
-                                      title: Text(
-                                        _getRelativePath(stat.path),
-                                        style: const TextStyle(fontSize: 12),
-                                      ),
-                                      trailing: Container(
-                                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                                        decoration: BoxDecoration(
-                                          color: Colors.blue.withOpacity(0.1),
-                                          borderRadius: BorderRadius.circular(8),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Padding(
+                                  padding: const EdgeInsets.all(16.0),
+                                  child: Row(
+                                    children: [
+                                      const Icon(Icons.folder_copy, size: 16, color: Colors.grey),
+                                      const SizedBox(width: 8),
+                                      Text(
+                                        'Directories (${_directoryStats.length})',
+                                        style: const TextStyle(
+                                          fontSize: 14,
+                                          fontWeight: FontWeight.w500,
+                                          color: Colors.grey,
                                         ),
-                                        child: Text(
-                                          '${stat.imageCount}',
+                                      ),
+                                      if (_directoryStats.length > 5) ...[
+                                        const SizedBox(width: 8),
+                                        Text(
+                                          '(Showing first 5 of ${_directoryStats.length})',
                                           style: const TextStyle(
-                                            color: Colors.blue,
-                                            fontWeight: FontWeight.bold,
                                             fontSize: 12,
+                                            color: Colors.grey,
+                                            fontStyle: FontStyle.italic,
                                           ),
                                         ),
-                                      ),
-                                    ),
-                                    if (stat.errors.isNotEmpty)
-                                      Padding(
-                                        padding: const EdgeInsets.only(left: 56, right: 16, bottom: 4),
-                                        child: Text(
-                                          stat.errors.join('\n'),
-                                          style: TextStyle(
-                                            color: Colors.red.shade700,
-                                            fontSize: 10,
+                                      ],
+                                    ],
+                                  ),
+                                ),
+                                const Divider(height: 1),
+                                Expanded(
+                                  child: ListView.builder(
+                                    itemCount: _directoryStats.length,
+                                    itemBuilder: (context, index) {
+                                      if (index == 5) {
+                                        return Padding(
+                                          padding: const EdgeInsets.symmetric(vertical: 8.0, horizontal: 16.0),
+                                          child: Text(
+                                            'Scroll to see ${_directoryStats.length - 5} more directories...',
+                                            style: TextStyle(
+                                              fontSize: 12,
+                                              color: Colors.blue.shade700,
+                                              fontStyle: FontStyle.italic,
+                                            ),
                                           ),
-                                        ),
-                                      ),
-                                  ],
-                                );
-                              },
+                                        );
+                                      }
+                                      
+                                      final stat = _directoryStats[index];
+                                      return Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          ListTile(
+                                            dense: true,
+                                            visualDensity: VisualDensity.compact,
+                                            leading: const Icon(Icons.folder_open, color: Colors.blue, size: 16),
+                                            title: Text(
+                                              _getRelativePath(stat.path),
+                                              style: const TextStyle(fontSize: 12),
+                                            ),
+                                            trailing: Container(
+                                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                              decoration: BoxDecoration(
+                                                color: Colors.blue.withOpacity(0.1),
+                                                borderRadius: BorderRadius.circular(8),
+                                              ),
+                                              child: Text(
+                                                '${stat.imageCount}',
+                                                style: const TextStyle(
+                                                  color: Colors.blue,
+                                                  fontWeight: FontWeight.bold,
+                                                  fontSize: 12,
+                                                ),
+                                              ),
+                                            ),
+                                            onTap: () => _showImagesDialog(context, stat),
+                                          ),
+                                          if (stat.errors.isNotEmpty)
+                                            Padding(
+                                              padding: const EdgeInsets.only(left: 56, right: 16, bottom: 4),
+                                              child: Text(
+                                                stat.errors.join('\n'),
+                                                style: TextStyle(
+                                                  color: Colors.red.shade700,
+                                                  fontSize: 10,
+                                                ),
+                                              ),
+                                            ),
+                                        ],
+                                      );
+                                    },
+                                  ),
+                                ),
+                              ],
                             ),
                           ),
                         ],
