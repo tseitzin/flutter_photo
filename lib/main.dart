@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:file_picker_desktop/file_picker_desktop.dart';
 import 'package:path/path.dart' as path;
+import 'package:intl/intl.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -16,11 +17,20 @@ class MyApp extends StatefulWidget {
   _MyAppState createState() => _MyAppState();
 }
 
+class ImageFileInfo {
+  final String path;
+  final String name;
+  final int size;
+  final DateTime modified;
+
+  ImageFileInfo(this.path, this.name, this.size, this.modified);
+}
+
 class DirectoryStats {
   final String path;
   final int imageCount;
   final List<String> errors;
-  final List<String> imageFiles;
+  final List<ImageFileInfo> imageFiles;
   final bool isAccessError;
 
   DirectoryStats(
@@ -49,6 +59,8 @@ class _MyAppState extends State<MyApp> {
   Timer? _updateTimer;
   String _elapsedTime = "0:00";
 
+  final DateFormat _dateFormatter = DateFormat('MMM d, y HH:mm');
+
   @override
   void dispose() {
     _updateTimer?.cancel();
@@ -60,6 +72,13 @@ class _MyAppState extends State<MyApp> {
     String minutes = twoDigits(duration.inMinutes.remainder(60));
     String seconds = twoDigits(duration.inSeconds.remainder(60));
     return "${duration.inHours > 0 ? '${duration.inHours}:' : ''}$minutes:$seconds";
+  }
+
+  String _formatFileSize(int bytes) {
+    if (bytes < 1024) return '$bytes B';
+    if (bytes < 1024 * 1024) return '${(bytes / 1024).toStringAsFixed(1)} KB';
+    if (bytes < 1024 * 1024 * 1024) return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
+    return '${(bytes / (1024 * 1024 * 1024)).toStringAsFixed(1)} GB';
   }
 
   void _startTimer() {
@@ -114,7 +133,7 @@ class _MyAppState extends State<MyApp> {
     return path.split(dirPath).any((part) => part.startsWith('.'));
   }
 
-  Future<void> _scanDirectory(Directory directory, Map<String, int> directoryCounts, Map<String, List<String>> directoryErrors, Map<String, List<String>> directoryImages) async {
+  Future<void> _scanDirectory(Directory directory, Map<String, int> directoryCounts, Map<String, List<String>> directoryErrors, Map<String, List<ImageFileInfo>> directoryImages) async {
     if (_shouldSkipDirectory(directory.path)) {
       return;
     }
@@ -150,7 +169,14 @@ class _MyAppState extends State<MyApp> {
             if (!directoryImages.containsKey(dirPath)) {
               directoryImages[dirPath] = [];
             }
-            directoryImages[dirPath]!.add(entity.path);
+
+            final stat = await entity.stat();
+            directoryImages[dirPath]!.add(ImageFileInfo(
+              entity.path,
+              path.basename(entity.path),
+              stat.size,
+              stat.modified
+            ));
             
             setState(() {
               _scannedDirs = directoryCounts.length;
@@ -237,7 +263,7 @@ class _MyAppState extends State<MyApp> {
         final directory = Directory(directoryPath);
         Map<String, int> directoryCounts = {};
         Map<String, List<String>> directoryErrors = {};
-        Map<String, List<String>> directoryImages = {};
+        Map<String, List<ImageFileInfo>> directoryImages = {};
         
         await _scanDirectory(directory, directoryCounts, directoryErrors, directoryImages);
 
@@ -366,7 +392,7 @@ class _MyAppState extends State<MyApp> {
               Text(
                 '${stats.imageFiles.length} images found',
                 style: const TextStyle(
-                  color: Colors.grey,
+                  color: Color.fromARGB(255, 49, 62, 62),
                   fontSize: 12,
                 ),
               ),
@@ -375,18 +401,17 @@ class _MyAppState extends State<MyApp> {
                 child: ListView.builder(
                   itemCount: stats.imageFiles.length,
                   itemBuilder: (context, index) {
-                    final imagePath = stats.imageFiles[index];
+                    final imageInfo = stats.imageFiles[index];
                     return ListTile(
                       dense: true,
-                      leading: const Icon(Icons.image, size: 16, color: Colors.blue),
+                      leading: const Icon(Icons.image, size: 16, color: Color.fromARGB(255, 19, 91, 150)),
                       title: Text(
-                        path.basename(imagePath),
+                        imageInfo.name,
                         style: const TextStyle(fontSize: 12),
                       ),
                       subtitle: Text(
-                        imagePath,
-                        style: const TextStyle(fontSize: 10, color: Colors.grey),
-                        overflow: TextOverflow.ellipsis,
+                        'Image Size: ${_formatFileSize(imageInfo.size)} • Date Created: ${_dateFormatter.format(imageInfo.modified)}',
+                        style: const TextStyle(fontSize: 10, color: Color.fromARGB(255, 53, 51, 51)),
                       ),
                     );
                   },
@@ -529,6 +554,7 @@ class _MyAppState extends State<MyApp> {
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'Photo Analyzer',
+      debugShowCheckedModeBanner: false,
       theme: ThemeData(
         primarySwatch: Colors.blue,
         useMaterial3: true,
@@ -750,7 +776,7 @@ class _MyAppState extends State<MyApp> {
                                     Text(
                                       '$_totalImages images in ${_directoryStats.length} directories',
                                       style: const TextStyle(
-                                        color: Colors.grey,
+                                        color: Color.fromARGB(255, 128, 120, 120),
                                         fontSize: 14,
                                       ),
                                     ),
@@ -759,14 +785,14 @@ class _MyAppState extends State<MyApp> {
                                 const SizedBox(height: 8),
                                 Row(
                                   children: [
-                                    const Icon(Icons.folder, color: Colors.grey, size: 16),
+                                    const Icon(Icons.folder, color: Color.fromARGB(255, 67, 62, 62), size: 16),
                                     const SizedBox(width: 8),
                                     Expanded(
                                       child: Text(
                                         _selectedDirectory!,
                                         style: const TextStyle(
                                           fontSize: 12,
-                                          color: Colors.grey,
+                                          color: Color.fromARGB(255, 67, 62, 62),
                                         ),
                                         overflow: TextOverflow.ellipsis,
                                       ),
@@ -821,7 +847,7 @@ class _MyAppState extends State<MyApp> {
                                         style: const TextStyle(
                                           fontSize: 14,
                                           fontWeight: FontWeight.w500,
-                                          color: Colors.grey,
+                                          color: Color.fromARGB(255, 40, 37, 37),
                                         ),
                                       ),
                                       if (_directoryStats.length > 5) ...[
