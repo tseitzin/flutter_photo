@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_photo/widgets/scanning_progress.dart';
 
 class ScanningProgressCard extends StatelessWidget {
   final String selectedDirectory;
@@ -51,40 +52,14 @@ class ScanningProgressCard extends StatelessWidget {
                 ],
               ),
               const SizedBox(height: 16),
-              Text(
-                'Files scanned: $scannedFiles',
-                style: const TextStyle(color: Colors.grey),
+              ScanningProgress(
+                scannedFiles: scannedFiles,
+                totalDirs: totalDirs,
+                scannedDirs: scannedDirs,
+                imagesFound: imagesFound,
+                elapsedTime: elapsedTime,
+                errorCount: errorCount,
               ),
-              const SizedBox(height: 4),
-              Text(
-                'Total directories scanned: $totalDirs',
-                style: const TextStyle(color: Colors.grey),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                'Directories with images: $scannedDirs',
-                style: const TextStyle(color: Colors.grey),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                'Images found: $imagesFound',
-                style: const TextStyle(
-                  color: Colors.blue,
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                'Time elapsed: $elapsedTime',
-                style: const TextStyle(color: Colors.grey),
-              ),
-              if (errorCount > 0) ...[
-                const SizedBox(height: 4),
-                Text(
-                  'Errors encountered: $errorCount',
-                  style: const TextStyle(color: Colors.red),
-                ),
-              ],
             ],
           ),
         ),
