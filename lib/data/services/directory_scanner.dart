@@ -1,8 +1,8 @@
 import 'dart:io';
 import 'dart:async';
 import 'package:path/path.dart' as path;
-import 'package:flutter_photo/models/directory_stats.dart';
-import 'package:flutter_photo/models/image_file_info.dart';
+import 'package:flutter_photo/data/models/directory_stats.dart';
+import 'package:flutter_photo/data/models/image_file_info.dart';
 
 class DirectoryScanner {
   bool _isScanning = false;

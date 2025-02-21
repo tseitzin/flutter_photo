@@ -1,5 +1,5 @@
 import 'package:flutter/foundation.dart';
-import 'package:flutter_photo/models/image_file_info.dart';
+import 'package:flutter_photo/data/models/image_file_info.dart';
 
 @immutable
 class DirectoryStats {

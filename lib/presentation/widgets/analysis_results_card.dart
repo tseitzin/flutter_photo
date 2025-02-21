@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_photo/models/directory_stats.dart';
-import 'package:flutter_photo/widgets/directory_list_view.dart';
-import 'package:flutter_photo/widgets/error_banner.dart';
+import 'package:flutter_photo/data/models/directory_stats.dart';
+import 'package:flutter_photo/presentation/widgets/directory_list_view.dart';
+import 'package:flutter_photo/presentation/widgets/error_banner.dart';
 
 class AnalysisResultsCard extends StatelessWidget {
   final String selectedDirectory;

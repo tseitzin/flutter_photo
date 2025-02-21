@@ -4,12 +4,12 @@ import 'package:flutter/material.dart';
 import 'package:file_picker_desktop/file_picker_desktop.dart';
 import 'package:path/path.dart' as path;
 import 'package:intl/intl.dart';
-import 'package:flutter_photo/models/directory_stats.dart';
+import 'package:flutter_photo/data/models/directory_stats.dart';
 import 'package:flutter_photo/utils/format_utils.dart';
-import 'package:flutter_photo/widgets/dialogs/images_dialog.dart';
-import 'package:flutter_photo/widgets/dialogs/errors_dialog.dart';
-import 'package:flutter_photo/widgets/photo_analyzer_layout.dart';
-import 'package:flutter_photo/services/directory_scanner.dart';
+import 'package:flutter_photo/presentation/widgets/dialogs/images_dialog.dart';
+import 'package:flutter_photo/presentation/widgets/dialogs/errors_dialog.dart';
+import 'package:flutter_photo/presentation/widgets/photo_analyzer_layout.dart';
+import 'package:flutter_photo/data/services/directory_scanner.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();

@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_photo/models/directory_stats.dart';
+import 'package:flutter_photo/data/models/directory_stats.dart';
 
 class DirectoryListView extends StatelessWidget {
   final List<DirectoryStats> directoryStats;

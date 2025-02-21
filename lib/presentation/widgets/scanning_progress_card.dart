@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_photo/widgets/scanning_progress.dart';
+import 'package:flutter_photo/presentation/widgets/scanning_progress.dart';
 
 class ScanningProgressCard extends StatelessWidget {
   final String selectedDirectory;

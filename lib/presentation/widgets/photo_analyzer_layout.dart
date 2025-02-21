@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_photo/models/directory_stats.dart';
-import 'package:flutter_photo/widgets/welcome_card.dart';
-import 'package:flutter_photo/widgets/scanning_progress_card.dart';
-import 'package:flutter_photo/widgets/analysis_results_card.dart';
-import 'package:flutter_photo/widgets/photo_analyzer_app_bar.dart';
-import 'package:flutter_photo/widgets/select_directory_button.dart';
+import 'package:flutter_photo/data/models/directory_stats.dart';
+import 'package:flutter_photo/presentation/widgets/welcome_card.dart';
+import 'package:flutter_photo/presentation/widgets/scanning_progress_card.dart';
+import 'package:flutter_photo/presentation/widgets/analysis_results_card.dart';
+import 'package:flutter_photo/presentation/widgets/photo_analyzer_app_bar.dart';
+import 'package:flutter_photo/presentation/widgets/select_directory_button.dart';
 
 class PhotoAnalyzerLayout extends StatelessWidget {
   final String? selectedDirectory;
