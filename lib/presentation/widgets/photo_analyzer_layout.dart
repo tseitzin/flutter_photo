@@ -5,6 +5,7 @@ import 'package:flutter_photo/presentation/widgets/scanning_progress_card.dart';
 import 'package:flutter_photo/presentation/widgets/analysis_results_card.dart';
 import 'package:flutter_photo/presentation/widgets/photo_analyzer_app_bar.dart';
 import 'package:flutter_photo/presentation/widgets/select_directory_button.dart';
+import 'package:flutter_photo/presentation/screens/database_viewer_screen.dart';
 
 class PhotoAnalyzerLayout extends StatelessWidget {
   final String? selectedDirectory;
@@ -48,6 +49,14 @@ class PhotoAnalyzerLayout extends StatelessWidget {
     required this.getRelativePath,
   });
 
+  void _showDatabaseViewer(BuildContext context) {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (context) => const DatabaseViewerScreen(),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -55,6 +64,7 @@ class PhotoAnalyzerLayout extends StatelessWidget {
         isLoading: isLoading,
         onCancelScan: onCancelScan,
         onExit: onExit,
+        onViewDatabase: () => _showDatabaseViewer(context),
       ),
       body: Column(
         crossAxisAlignment: CrossAxisAlignment.start,

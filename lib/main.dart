@@ -10,9 +10,24 @@ import 'package:flutter_photo/presentation/widgets/dialogs/images_dialog.dart';
 import 'package:flutter_photo/presentation/widgets/dialogs/errors_dialog.dart';
 import 'package:flutter_photo/presentation/widgets/photo_analyzer_layout.dart';
 import 'package:flutter_photo/data/services/directory_scanner.dart';
+import 'package:flutter_photo/data/services/database_service.dart';
+import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 
-void main() {
+Future<void> main() async {
+  // Ensure Flutter bindings are initialized
   WidgetsFlutterBinding.ensureInitialized();
+
+  // Initialize sqflite_ffi
+  if (Platform.isWindows || Platform.isLinux) {
+    // Initialize FFI
+    sqfliteFfiInit();
+    // Change the default factory for desktop
+    databaseFactory = databaseFactoryFfi;
+  }
+
+  // Initialize database
+  await DatabaseService.database;
+
   runApp(const MyApp());
 }
 
@@ -20,6 +35,7 @@ class MyApp extends StatefulWidget {
   const MyApp({super.key});
 
   @override
+  // ignore: library_private_types_in_public_api
   _MyAppState createState() => _MyAppState();
 }
 
@@ -119,6 +135,22 @@ class _MyAppState extends State<MyApp> {
     );
   }
 
+  Future<void> _saveImages(List<DirectoryStats> stats) async {
+    try {
+      final allImages = stats.expand((stat) => stat.imageFiles).toList();
+      await DatabaseService.saveImages(allImages);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error saving images: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
   Future<void> _pickDirectory(BuildContext context) async {
     try {
       String? directoryPath = await getDirectoryPath();
@@ -167,6 +199,9 @@ class _MyAppState extends State<MyApp> {
             _totalImages = total;
             _isLoading = false;
           });
+
+          // Save images to database
+          await _saveImages(stats);
 
           if (_totalImages == 0 && mounted) {
             ScaffoldMessenger.of(context).showSnackBar(

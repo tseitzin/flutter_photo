@@ -4,12 +4,14 @@ class PhotoAnalyzerAppBar extends StatelessWidget implements PreferredSizeWidget
   final bool isLoading;
   final VoidCallback onCancelScan;
   final VoidCallback onExit;
+  final VoidCallback onViewDatabase;
 
   const PhotoAnalyzerAppBar({
     super.key,
     required this.isLoading,
     required this.onCancelScan,
     required this.onExit,
+    required this.onViewDatabase,
   });
 
   @override
@@ -30,6 +32,14 @@ class PhotoAnalyzerAppBar extends StatelessWidget implements PreferredSizeWidget
               label: const Text('Stop Scan', style: TextStyle(color: Colors.red)),
             ),
           ),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 8.0),
+          child: TextButton.icon(
+            onPressed: onViewDatabase,
+            icon: const Icon(Icons.storage),
+            label: const Text('View Database'),
+          ),
+        ),
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 8.0),
           child: ElevatedButton.icon(

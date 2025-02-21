@@ -125,7 +125,7 @@ class DirectoryScanner {
               entity.path,
               path.basename(entity.path),
               stat.size,
-              stat.modified
+              stat.modified,
             ));
             
             onProgress(_scannedFiles, _totalDirs, directoryCounts.length, 1);
