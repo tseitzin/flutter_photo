@@ -4,6 +4,9 @@ import 'package:flutter/material.dart';
 import 'package:file_picker_desktop/file_picker_desktop.dart';
 import 'package:path/path.dart' as path;
 import 'package:intl/intl.dart';
+import 'package:flutter_photo/models/directory_stats.dart';
+import 'package:flutter_photo/models/image_file_info.dart';
+import 'package:flutter_photo/utils/format_utils.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -15,31 +18,6 @@ class MyApp extends StatefulWidget {
 
   @override
   _MyAppState createState() => _MyAppState();
-}
-
-class ImageFileInfo {
-  final String path;
-  final String name;
-  final int size;
-  final DateTime modified;
-
-  ImageFileInfo(this.path, this.name, this.size, this.modified);
-}
-
-class DirectoryStats {
-  final String path;
-  final int imageCount;
-  final List<String> errors;
-  final List<ImageFileInfo> imageFiles;
-  final bool isAccessError;
-
-  DirectoryStats(
-    this.path, 
-    this.imageCount, 
-    {this.errors = const [], 
-    this.imageFiles = const [],
-    this.isAccessError = false}
-  );
 }
 
 class _MyAppState extends State<MyApp> {
@@ -67,20 +45,6 @@ class _MyAppState extends State<MyApp> {
     super.dispose();
   }
 
-  String _formatDuration(Duration duration) {
-    String twoDigits(int n) => n.toString().padLeft(2, '0');
-    String minutes = twoDigits(duration.inMinutes.remainder(60));
-    String seconds = twoDigits(duration.inSeconds.remainder(60));
-    return "${duration.inHours > 0 ? '${duration.inHours}:' : ''}$minutes:$seconds";
-  }
-
-  String _formatFileSize(int bytes) {
-    if (bytes < 1024) return '$bytes B';
-    if (bytes < 1024 * 1024) return '${(bytes / 1024).toStringAsFixed(1)} KB';
-    if (bytes < 1024 * 1024 * 1024) return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
-    return '${(bytes / (1024 * 1024 * 1024)).toStringAsFixed(1)} GB';
-  }
-
   void _startTimer() {
     _scanStartTime = DateTime.now();
     _updateTimer?.cancel();
@@ -94,7 +58,7 @@ class _MyAppState extends State<MyApp> {
       final elapsed = now.difference(_scanStartTime!);
       
       setState(() {
-        _elapsedTime = _formatDuration(elapsed);
+        _elapsedTime = formatDuration(elapsed);
       });
     });
   }
@@ -410,7 +374,7 @@ class _MyAppState extends State<MyApp> {
                         style: const TextStyle(fontSize: 12),
                       ),
                       subtitle: Text(
-                        'Image Size: ${_formatFileSize(imageInfo.size)} • Date Created: ${_dateFormatter.format(imageInfo.modified)}',
+                        'Image Size: ${formatFileSize(imageInfo.size)} • Date Created: ${_dateFormatter.format(imageInfo.modified)}',
                         style: const TextStyle(fontSize: 10, color: Color.fromARGB(255, 53, 51, 51)),
                       ),
                     );
