@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'dart:async';
 import 'package:path/path.dart' as path;
+import 'package:exif/exif.dart';
 import 'package:flutter_photo/data/models/directory_stats.dart';
 import 'package:flutter_photo/data/models/image_file_info.dart';
 
@@ -73,6 +74,26 @@ class DirectoryScanner {
     }
   }
 
+  Future<Map<String, dynamic>?> _readExifData(File imageFile) async {
+    try {
+      final bytes = await imageFile.readAsBytes();
+      final decoder = await readExifFromBytes(bytes);
+      
+      if (decoder.isEmpty) return null;
+
+      final Map<String, dynamic> exifData = {};
+      decoder.forEach((key, value) {
+        // Convert IfdTag to string to store only the value
+        exifData[key] = value.toString();
+      });
+      
+      return exifData;
+    } catch (e) {
+      // If we can't read EXIF data, just return null
+      return null;
+    }
+  }
+
   Future<void> _scanDirectory(
     Directory directory,
     Map<String, int> directoryCounts,
@@ -121,11 +142,19 @@ class DirectoryScanner {
             }
 
             final stat = await entity.stat();
+            Map<String, dynamic>? exifData;
+            
+            // Only try to read EXIF data for JPEG images
+            if (['.jpg', '.jpeg'].contains(extension)) {
+              exifData = await _readExifData(entity);
+            }
+
             directoryImages[dirPath]!.add(ImageFileInfo(
               entity.path,
               path.basename(entity.path),
               stat.size,
               stat.modified,
+              exifData: exifData,
             ));
             
             onProgress(_scannedFiles, _totalDirs, directoryCounts.length, 1);

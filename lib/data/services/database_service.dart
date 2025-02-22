@@ -24,7 +24,7 @@ class DatabaseService {
     return await databaseFactory.openDatabase(
       dbPath,
       options: OpenDatabaseOptions(
-        version: 1,
+        version: 2,
         onCreate: (db, version) async {
           await db.execute('''
             CREATE TABLE images (
@@ -34,6 +34,7 @@ class DatabaseService {
               size INTEGER NOT NULL,
               modified_at TEXT NOT NULL,
               directory TEXT NOT NULL,
+              exif_data TEXT,
               created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
             )
           ''');
@@ -42,6 +43,12 @@ class DatabaseService {
           await db.execute(
             'CREATE INDEX images_directory_idx ON images(directory)'
           );
+        },
+        onUpgrade: (db, oldVersion, newVersion) async {
+          if (oldVersion < 2) {
+            // Add exif_data column
+            await db.execute('ALTER TABLE images ADD COLUMN exif_data TEXT');
+          }
         },
       ),
     );
@@ -54,13 +61,7 @@ class DatabaseService {
     for (final image in images) {
       batch.insert(
         'images',
-        {
-          'path': image.path,
-          'name': image.name,
-          'size': image.size,
-          'modified_at': image.modified.toIso8601String(),
-          'directory': dirname(image.path),
-        },
+        image.toMap(),
         conflictAlgorithm: ConflictAlgorithm.replace,
       );
     }
@@ -76,12 +77,7 @@ class DatabaseService {
       whereArgs: [directory],
     );
 
-    return results.map((row) => ImageFileInfo(
-      row['path'] as String,
-      row['name'] as String,
-      row['size'] as int,
-      DateTime.parse(row['modified_at'] as String),
-    )).toList();
+    return results.map((row) => ImageFileInfo.fromMap(row)).toList();
   }
 
   static Future<List<Map<String, dynamic>>> getAllImages() async {

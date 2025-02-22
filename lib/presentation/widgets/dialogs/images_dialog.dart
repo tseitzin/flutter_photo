@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_photo/data/models/directory_stats.dart';
 import 'package:flutter_photo/utils/format_utils.dart';
+import 'package:flutter_photo/presentation/widgets/dialogs/image_details_dialog.dart';
 import 'package:intl/intl.dart';
 
 class ImagesDialog extends StatelessWidget {
@@ -14,6 +15,16 @@ class ImagesDialog extends StatelessWidget {
     required this.relativePath,
     required this.dateFormatter,
   });
+
+  void _showImageDetails(BuildContext context, int index) {
+    showDialog(
+      context: context,
+      builder: (context) => ImageDetailsDialog(
+        imageInfo: stats.imageFiles[index],
+        dateFormatter: dateFormatter,
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -61,15 +72,37 @@ class ImagesDialog extends StatelessWidget {
                   final imageInfo = stats.imageFiles[index];
                   return ListTile(
                     dense: true,
-                    leading: const Icon(Icons.image, size: 16, color: Color.fromARGB(255, 19, 91, 150)),
+                    leading: Stack(
+                      children: [
+                        const Icon(Icons.image, size: 16, color: Color.fromARGB(255, 19, 91, 150)),
+                        if (imageInfo.exifData != null)
+                          Positioned(
+                            right: -2,
+                            bottom: -2,
+                            child: Container(
+                              padding: const EdgeInsets.all(2),
+                              decoration: const BoxDecoration(
+                                color: Colors.blue,
+                                shape: BoxShape.circle,
+                              ),
+                              child: const Icon(
+                                Icons.info_outline,
+                                size: 8,
+                                color: Colors.white,
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
                     title: Text(
                       imageInfo.name,
                       style: const TextStyle(fontSize: 12),
                     ),
                     subtitle: Text(
-                      'Image Size: ${formatFileSize(imageInfo.size)} • Date Created: ${dateFormatter.format(imageInfo.modified)}',
+                      'Size: ${formatFileSize(imageInfo.size)} • Modified: ${dateFormatter.format(imageInfo.modified)}',
                       style: const TextStyle(fontSize: 10, color: Color.fromARGB(255, 53, 51, 51)),
                     ),
+                    onTap: () => _showImageDetails(context, index),
                   );
                 },
               ),
