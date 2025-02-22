@@ -203,7 +203,7 @@ class _MyAppState extends State<MyApp> {
           // Save images to database
           await _saveImages(stats);
 
-          if (_totalImages == 0 && mounted) {
+          if (_totalImages == 0 && context.mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
               const SnackBar(
                 content: Text('No images found in the selected directory'),
@@ -213,7 +213,7 @@ class _MyAppState extends State<MyApp> {
             );
           }
         } catch (e) {
-          if (mounted) {
+          if (context.mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
                 content: Text('Cannot access directory: $e'),
@@ -237,7 +237,7 @@ class _MyAppState extends State<MyApp> {
       setState(() {
         _isLoading = false;
       });
-      if (mounted) {
+      if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Error scanning directory: $e'),
