@@ -7,13 +7,19 @@ class ImageFileInfo {
   final int size;
   final DateTime modified;
   final Map<String, dynamic>? exifData;
+  final String? checksum;
+  final bool isDuplicate;
 
   const ImageFileInfo(
     this.path, 
     this.name, 
     this.size, 
     this.modified, 
-    {this.exifData}
+    {
+      this.exifData,
+      this.checksum,
+      this.isDuplicate = false,
+    }
   );
 
   Map<String, dynamic> toMap() {
@@ -24,6 +30,7 @@ class ImageFileInfo {
       'modified_at': modified.toIso8601String(),
       'directory': path.substring(0, path.lastIndexOf('/')),
       'exif_data': exifData != null ? _serializeExif(exifData!) : null,
+      'checksum': checksum,
     };
   }
 
@@ -56,6 +63,28 @@ class ImageFileInfo {
       map['size'] as int,
       DateTime.parse(map['modified_at'] as String),
       exifData: _deserializeExif(map['exif_data'] as String?),
+      checksum: map['checksum'] as String?,
+      isDuplicate: map['is_duplicate'] == 1,
+    );
+  }
+
+  ImageFileInfo copyWith({
+    String? path,
+    String? name,
+    int? size,
+    DateTime? modified,
+    Map<String, dynamic>? exifData,
+    String? checksum,
+    bool? isDuplicate,
+  }) {
+    return ImageFileInfo(
+      path ?? this.path,
+      name ?? this.name,
+      size ?? this.size,
+      modified ?? this.modified,
+      exifData: exifData ?? this.exifData,
+      checksum: checksum ?? this.checksum,
+      isDuplicate: isDuplicate ?? this.isDuplicate,
     );
   }
 }

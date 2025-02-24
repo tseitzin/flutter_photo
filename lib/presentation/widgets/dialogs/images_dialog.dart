@@ -74,7 +74,13 @@ class ImagesDialog extends StatelessWidget {
                     dense: true,
                     leading: Stack(
                       children: [
-                        const Icon(Icons.image, size: 16, color: Color.fromARGB(255, 19, 91, 150)),
+                        Icon(
+                          Icons.image,
+                          size: 16,
+                          color: imageInfo.isDuplicate
+                              ? Colors.orange
+                              : const Color.fromARGB(255, 19, 91, 150),
+                        ),
                         if (imageInfo.exifData != null)
                           Positioned(
                             right: -2,
@@ -94,13 +100,45 @@ class ImagesDialog extends StatelessWidget {
                           ),
                       ],
                     ),
-                    title: Text(
-                      imageInfo.name,
-                      style: const TextStyle(fontSize: 12),
+                    title: Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            imageInfo.name,
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: imageInfo.isDuplicate
+                                  ? Colors.orange
+                                  : Colors.black,
+                            ),
+                          ),
+                        ),
+                        if (imageInfo.isDuplicate)
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 6,
+                              vertical: 2,
+                            ),
+                            decoration: BoxDecoration(
+                              color: Colors.orange.withOpacity(0.1),
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                            child: const Text(
+                              'Duplicate',
+                              style: TextStyle(
+                                fontSize: 10,
+                                color: Colors.orange,
+                              ),
+                            ),
+                          ),
+                      ],
                     ),
                     subtitle: Text(
                       'Size: ${formatFileSize(imageInfo.size)} • Modified: ${dateFormatter.format(imageInfo.modified)}',
-                      style: const TextStyle(fontSize: 10, color: Color.fromARGB(255, 53, 51, 51)),
+                      style: const TextStyle(
+                        fontSize: 10,
+                        color: Color.fromARGB(255, 53, 51, 51),
+                      ),
                     ),
                     onTap: () => _showImageDetails(context, index),
                   );

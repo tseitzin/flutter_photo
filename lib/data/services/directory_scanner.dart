@@ -1,6 +1,8 @@
 import 'dart:io';
 import 'dart:async';
+import 'dart:convert';
 import 'package:path/path.dart' as path;
+import 'package:crypto/crypto.dart'; // Changed this line
 import 'package:exif/exif.dart';
 import 'package:flutter_photo/data/models/directory_stats.dart';
 import 'package:flutter_photo/data/models/image_file_info.dart';
@@ -10,11 +12,12 @@ class DirectoryScanner {
   final List<String> _accessErrors = [];
   final Set<String> _unscannedDirectories = {};
   int _scannedFiles = 0;
-  int _totalDirs = 1; // Initialize with 1 for root directory
-  
+  int _totalDirs = 1;
+
   bool get isScanning => _isScanning;
   List<String> get accessErrors => List.unmodifiable(_accessErrors);
-  Set<String> get unscannedDirectories => Set.unmodifiable(_unscannedDirectories);
+  Set<String> get unscannedDirectories =>
+      Set.unmodifiable(_unscannedDirectories);
 
   void reset() {
     _accessErrors.clear();
@@ -27,14 +30,41 @@ class DirectoryScanner {
     _isScanning = false;
   }
 
+  Future<String> _calculateChecksum(File file) async {
+    try {
+      final bytes = await file.readAsBytes();
+      return md5.convert(bytes).toString(); // Updated this line
+    } catch (e) {
+      return '';
+    }
+  }
+
   bool _shouldSkipDirectory(String dirPath) {
     return path.split(dirPath).any((part) => part.startsWith('.'));
+  }
+
+  Future<Map<String, dynamic>?> _readExifData(File imageFile) async {
+    try {
+      final bytes = await imageFile.readAsBytes();
+      final decoder = await readExifFromBytes(bytes);
+
+      if (decoder.isEmpty) return null;
+
+      final Map<String, dynamic> exifData = {};
+      decoder.forEach((key, value) {
+        exifData[key] = value.toString();
+      });
+
+      return exifData;
+    } catch (e) {
+      return null;
+    }
   }
 
   Future<(bool, String?)> _checkDirectoryAccess(String dirPath) async {
     try {
       final dir = Directory(dirPath);
-      
+
       if (!await dir.exists()) {
         return (false, 'Directory does not exist');
       }
@@ -74,39 +104,28 @@ class DirectoryScanner {
     }
   }
 
-  Future<Map<String, dynamic>?> _readExifData(File imageFile) async {
-    try {
-      final bytes = await imageFile.readAsBytes();
-      final decoder = await readExifFromBytes(bytes);
-      
-      if (decoder.isEmpty) return null;
-
-      final Map<String, dynamic> exifData = {};
-      decoder.forEach((key, value) {
-        // Convert IfdTag to string to store only the value
-        exifData[key] = value.toString();
-      });
-      
-      return exifData;
-    } catch (e) {
-      // If we can't read EXIF data, just return null
-      return null;
-    }
-  }
-
   Future<void> _scanDirectory(
     Directory directory,
     Map<String, int> directoryCounts,
     Map<String, List<String>> directoryErrors,
     Map<String, List<ImageFileInfo>> directoryImages,
-    void Function(int scannedFiles, int totalDirs, int scannedDirs, int imagesFound) onProgress,
+    void Function(
+      int scannedFiles,
+      int totalDirs,
+      int scannedDirs,
+      int imagesFound,
+    )
+    onProgress,
   ) async {
     if (_shouldSkipDirectory(directory.path)) {
       return;
     }
 
     try {
-      await for (var entity in directory.list(recursive: false, followLinks: false)) {
+      await for (var entity in directory.list(
+        recursive: false,
+        followLinks: false,
+      )) {
         if (!_isScanning) return;
 
         if (entity is Directory) {
@@ -114,7 +133,7 @@ class DirectoryScanner {
             continue;
           }
 
-          _totalDirs++; // Increment total directories counter
+          _totalDirs++;
           onProgress(_scannedFiles, _totalDirs, directoryCounts.length, 0);
 
           await _scanDirectory(
@@ -128,35 +147,48 @@ class DirectoryScanner {
           if (_shouldSkipDirectory(path.dirname(entity.path))) {
             continue;
           }
-          
+
           _scannedFiles++;
           onProgress(_scannedFiles, _totalDirs, directoryCounts.length, 0);
-          
+
           String extension = path.extension(entity.path).toLowerCase();
-          if (['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp'].contains(extension)) {
+          if ([
+            '.jpg',
+            '.jpeg',
+            '.png',
+            '.gif',
+            '.bmp',
+            '.webp',
+          ].contains(extension)) {
             String dirPath = path.dirname(entity.path);
             directoryCounts[dirPath] = (directoryCounts[dirPath] ?? 0) + 1;
-            
+
             if (!directoryImages.containsKey(dirPath)) {
               directoryImages[dirPath] = [];
             }
 
             final stat = await entity.stat();
             Map<String, dynamic>? exifData;
-            
-            // Only try to read EXIF data for JPEG images
+            String? checksum;
+
             if (['.jpg', '.jpeg'].contains(extension)) {
               exifData = await _readExifData(entity);
             }
 
-            directoryImages[dirPath]!.add(ImageFileInfo(
-              entity.path,
-              path.basename(entity.path),
-              stat.size,
-              stat.modified,
-              exifData: exifData,
-            ));
-            
+            // Calculate checksum for all image types
+            checksum = await _calculateChecksum(entity);
+
+            directoryImages[dirPath]!.add(
+              ImageFileInfo(
+                entity.path,
+                path.basename(entity.path),
+                stat.size,
+                stat.modified,
+                exifData: exifData,
+                checksum: checksum,
+              ),
+            );
+
             onProgress(_scannedFiles, _totalDirs, directoryCounts.length, 1);
           }
         }
@@ -164,13 +196,16 @@ class DirectoryScanner {
     } catch (e) {
       if (!_shouldSkipDirectory(directory.path)) {
         String errorMessage = e.toString();
-        bool isAccessError = errorMessage.toLowerCase().contains('access') || 
-                         errorMessage.toLowerCase().contains('permission');
-        
+        bool isAccessError =
+            errorMessage.toLowerCase().contains('access') ||
+            errorMessage.toLowerCase().contains('permission');
+
         if (isAccessError) {
           _unscannedDirectories.add(directory.path);
         } else {
-          _accessErrors.add('Error in ${directory.path}: ${_getDetailedError(e)}');
+          _accessErrors.add(
+            'Error in ${directory.path}: ${_getDetailedError(e)}',
+          );
         }
       }
     }
@@ -178,7 +213,13 @@ class DirectoryScanner {
 
   Future<List<DirectoryStats>> scanDirectory(
     String directoryPath,
-    void Function(int scannedFiles, int totalDirs, int scannedDirs, int imagesFound) onProgress,
+    void Function(
+      int scannedFiles,
+      int totalDirs,
+      int scannedDirs,
+      int imagesFound,
+    )
+    onProgress,
   ) async {
     var (hasAccess, error) = await _checkDirectoryAccess(directoryPath);
     if (!hasAccess) {
@@ -192,7 +233,7 @@ class DirectoryScanner {
     Map<String, int> directoryCounts = {};
     Map<String, List<String>> directoryErrors = {};
     Map<String, List<ImageFileInfo>> directoryImages = {};
-    
+
     await _scanDirectory(
       directory,
       directoryCounts,
@@ -204,14 +245,16 @@ class DirectoryScanner {
     if (!_isScanning) return [];
 
     List<DirectoryStats> stats = [];
-    
+
     directoryCounts.forEach((dirPath, count) {
-      stats.add(DirectoryStats(
-        dirPath, 
-        count,
-        errors: directoryErrors[dirPath] ?? [],
-        imageFiles: directoryImages[dirPath] ?? []
-      ));
+      stats.add(
+        DirectoryStats(
+          dirPath,
+          count,
+          errors: directoryErrors[dirPath] ?? [],
+          imageFiles: directoryImages[dirPath] ?? [],
+        ),
+      );
     });
 
     stats.sort((a, b) => a.path.compareTo(b.path));
