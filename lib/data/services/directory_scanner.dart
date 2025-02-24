@@ -1,6 +1,5 @@
 import 'dart:io';
 import 'dart:async';
-import 'dart:convert';
 import 'package:path/path.dart' as path;
 import 'package:crypto/crypto.dart'; // Changed this line
 import 'package:exif/exif.dart';
